@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Document Transformation - Gen AI Platform</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+            color: #222;
+        }
+
+        .navbar {
+            background: #111827;
+            color: white;
+            padding: 18px 35px;
+
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar h2 {
+            margin: 0;
+        }
+
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            margin-left: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+        }
+
+        h1 {
+            margin-top: 0;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        label {
+            display: block;
+            margin-top: 18px;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        input[type="file"],
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+        }
+
+        .button {
+            margin-top: 25px;
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            background: #2563eb;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .button:hover {
+            background: #1d4ed8;
+        }
+
+        .flash {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .file-name {
+            margin-top: 15px;
+            padding: 12px;
+            background: #eff6ff;
+            border-radius: 8px;
+        }
+
+        .output {
+            margin-top: 35px;
+            padding: 25px;
+            background: #f8fafc;
+            border-left: 5px solid #2563eb;
+            border-radius: 10px;
+        }
+
+        .output h2 {
+            margin-top: 0;
+            color: #1e3a8a;
+        }
+
+        .output-content {
+            white-space: pre-wrap;
+            line-height: 1.7;
+            font-size: 16px;
+        }
+
+        .info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f0fdf4;
+            border-radius: 8px;
+            color: #166534;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <!-- NAVIGATION -->
+
+    <div class="navbar">
+
+        <h2>✨ Gen AI Platform</h2>
+
+        <div class="nav-links">
+
+            <a href="{{ url_for('dashboard') }}">
+                Dashboard
+            </a>
+
+            <a href="{{ url_for('transform') }}">
+                Text Transform
+            </a>
+
+            <a href="{{ url_for('logout') }}">
+                Logout
+            </a>
+
+        </div>
+
+    </div>
+
+
+    <!-- MAIN CONTENT -->
+
+    <div class="container">
+
+        <div class="card">
+
+            <h1>
+                📄 Document Transformation
+            </h1>
+
+            <p class="subtitle">
+                Upload a PDF or DOCX document and transform
+                its content using Generative AI.
+            </p>
+
+
+            <!-- FLASH MESSAGES -->
+
+            {% with messages = get_flashed_messages() %}
+
+                {% if messages %}
+
+                    {% for message in messages %}
+
+                        <div class="flash">
+                            {{ message }}
+                        </div>
+
+                    {% endfor %}
+
+                {% endif %}
+
+            {% endwith %}
+
+
+            <!-- UPLOAD FORM -->
+
+            <form
+                action="{{ url_for('document_transform') }}"
+                method="POST"
+                enctype="multipart/form-data"
+            >
+
+                <label>
+                    📎 Select Document
+                </label>
+
+                <input
+                    type="file"
+                    name="document"
+                    accept=".pdf,.docx"
+                    required
+                >
+
+
+                <label>
+                    🔄 Transformation Type
+                </label>
+
+                <select
+                    name="transformation"
+                    required
+                >
+
+                    <option value="Summarize">
+                        Summarize
+                    </option>
+
+                    <option value="Rewrite">
+                        Rewrite
+                    </option>
+
+                    <option value="Simplify">
+                        Simplify
+                    </option>
+
+                    <option value="Expand">
+                        Expand
+                    </option>
+
+                    <option value="Professional Writing">
+                        Professional Writing
+                    </option>
+
+                    <option value="Convert to Email">
+                        Convert to Email
+                    </option>
+
+                    <option value="Social Media Post">
+                        Social Media Post
+                    </option>
+
+                    <option value="Blog Content">
+                        Blog Content
+                    </option>
+
+                    <option value="Presentation Content">
+                        Presentation Content
+                    </option>
+
+                    <option value="Speech">
+                        Speech
+                    </option>
+
+                </select>
+
+
+                <label>
+                    🎯 Tone
+                </label>
+
+                <select
+                    name="tone"
+                    required
+                >
+
+                    <option value="Professional">
+                        Professional
+                    </option>
+
+                    <option value="Formal">
+                        Formal
+                    </option>
+
+                    <option value="Friendly">
+                        Friendly
+                    </option>
+
+                    <option value="Simple">
+                        Simple
+                    </option>
+
+                    <option value="Creative">
+                        Creative
+                    </option>
+
+                    <option value="Academic">
+                        Academic
+                    </option>
+
+                </select>
+
+
+                <label>
+                    🌐 Language
+                </label>
+
+                <select
+                    name="language"
+                    required
+                >
+
+                    <option value="English">
+                        English
+                    </option>
+
+                    <option value="Hindi">
+                        Hindi
+                    </option>
+
+                    <option value="Telugu">
+                        Telugu
+                    </option>
+
+                </select>
+
+
+                <button
+                    type="submit"
+                    class="button"
+                >
+                    ✨ Generate Transformation
+                </button>
+
+            </form>
+
+
+            <!-- UPLOADED FILE -->
+
+            {% if filename %}
+
+                <div class="file-name">
+
+                    📄 Uploaded File:
+
+                    <strong>
+                        {{ filename }}
+                    </strong>
+
+                </div>
+
+            {% endif %}
+
+
+            <!-- AI OUTPUT -->
+
+            {% if output %}
+
+                <div class="output">
+
+                    <h2>
+                        🤖 AI Generated Output
+                    </h2>
+
+                    <div class="output-content">
+                        {{ output }}
+                    </div>
+
+                </div>
+
+                <div class="info">
+
+                    ✅ Document successfully processed
+                    and transformed using Generative AI.
+
+                </div>
+
+            {% endif %}
+
+        </div>
+
+    </div>
+
+</body>
+
+</html>
