@@ -1,7 +1,10 @@
 import sqlite3
 import os
 
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import (
+    generate_password_hash,
+    check_password_hash
+)
 
 
 # =========================================================
@@ -9,7 +12,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 # =========================================================
 
 DATABASE_DIR = "database"
-DATABASE_FILE = os.path.join(DATABASE_DIR, "users.db")
+DATABASE_FILE = os.path.join(
+    DATABASE_DIR,
+    "users.db"
+)
 
 
 # =========================================================
@@ -17,9 +23,16 @@ DATABASE_FILE = os.path.join(DATABASE_DIR, "users.db")
 # =========================================================
 
 def get_connection():
-    os.makedirs(DATABASE_DIR, exist_ok=True)
 
-    connection = sqlite3.connect(DATABASE_FILE)
+    os.makedirs(
+        DATABASE_DIR,
+        exist_ok=True
+    )
+
+    connection = sqlite3.connect(
+        DATABASE_FILE
+    )
+
     connection.row_factory = sqlite3.Row
 
     return connection
@@ -41,11 +54,13 @@ def init_database():
             username TEXT NOT NULL,
             email TEXT NOT NULL UNIQUE,
             password TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP
+                DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
     connection.commit()
+
     connection.close()
 
     print("Database initialized successfully.")
@@ -55,14 +70,19 @@ def init_database():
 # CREATE USER
 # =========================================================
 
-def create_user(username, email, password):
+def create_user(
+    username,
+    email,
+    password
+):
 
     connection = get_connection()
 
     cursor = connection.cursor()
 
-    # Use Werkzeug secure password hashing
-    hashed_password = generate_password_hash(password)
+    hashed_password = generate_password_hash(
+        password
+    )
 
     cursor.execute("""
         INSERT INTO users (
@@ -72,12 +92,13 @@ def create_user(username, email, password):
         )
         VALUES (?, ?, ?)
     """, (
-        username,
-        email,
+        username.strip(),
+        email.strip().lower(),
         hashed_password
     ))
 
     connection.commit()
+
     connection.close()
 
 
@@ -110,7 +131,10 @@ def get_user_by_email(email):
 # VERIFY PASSWORD
 # =========================================================
 
-def verify_password(password, stored_password):
+def verify_password(
+    password,
+    stored_password
+):
 
     try:
 
@@ -121,17 +145,57 @@ def verify_password(password, stored_password):
 
     except Exception as e:
 
-        print("Password verification error:", e)
+        print(
+            "Password verification error:",
+            e
+        )
 
         return False
 
 
 # =========================================================
-# TEST
+# RESET PASSWORD
+# =========================================================
+
+def reset_password(
+    email,
+    new_password
+):
+
+    connection = get_connection()
+
+    cursor = connection.cursor()
+
+    hashed_password = generate_password_hash(
+        new_password
+    )
+
+    cursor.execute("""
+        UPDATE users
+        SET password = ?
+        WHERE email = ?
+    """, (
+        hashed_password,
+        email.strip().lower()
+    ))
+
+    connection.commit()
+
+    updated_rows = cursor.rowcount
+
+    connection.close()
+
+    return updated_rows > 0
+
+
+# =========================================================
+# TEST DATABASE
 # =========================================================
 
 if __name__ == "__main__":
 
     init_database()
 
-    print("Database test completed.")
+    print(
+        "Database test completed."
+    )
