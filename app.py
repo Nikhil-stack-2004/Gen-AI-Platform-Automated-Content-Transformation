@@ -1,5 +1,3 @@
-import os
-
 from flask import (
     Flask,
     render_template,
@@ -10,14 +8,8 @@ from flask import (
     flash
 )
 
+import os
 from werkzeug.utils import secure_filename
-
-from PyPDF2 import PdfReader
-from docx import Document
-
-# =========================================================
-# DATABASE
-# =========================================================
 
 from db import (
     init_database,
@@ -25,10 +17,6 @@ from db import (
     get_user_by_email,
     verify_password
 )
-
-# =========================================================
-# GENERATIVE AI
-# =========================================================
 
 from ai_engine import transform_content
 
@@ -43,10 +31,15 @@ app.secret_key = "gen-ai-content-transformation-secret-key"
 
 
 # =========================================================
-# UPLOAD CONFIGURATION
+# CONFIGURATION
 # =========================================================
 
-UPLOAD_FOLDER = "uploads"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+UPLOAD_FOLDER = os.path.join(
+    BASE_DIR,
+    "uploads"
+)
 
 ALLOWED_EXTENSIONS = {
     "pdf",
@@ -55,6 +48,10 @@ ALLOWED_EXTENSIONS = {
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
+app.config["MAX_CONTENT_LENGTH"] = (
+    10 * 1024 * 1024
+)
+
 os.makedirs(
     UPLOAD_FOLDER,
     exist_ok=True
@@ -62,7 +59,7 @@ os.makedirs(
 
 
 # =========================================================
-# INITIALIZE DATABASE
+# DATABASE
 # =========================================================
 
 init_database()
@@ -76,43 +73,18 @@ def allowed_file(filename):
 
     return (
         "." in filename
-        and filename.rsplit(".", 1)[1].lower()
+        and
+        filename.rsplit(
+            ".",
+            1
+        )[1].lower()
         in ALLOWED_EXTENSIONS
     )
 
 
-def extract_pdf_text(filepath):
+def login_required():
 
-    text = ""
-
-    reader = PdfReader(filepath)
-
-    for page in reader.pages:
-
-        page_text = page.extract_text()
-
-        if page_text:
-
-            text += page_text + "\n"
-
-    return text.strip()
-
-
-def extract_docx_text(filepath):
-
-    document = Document(filepath)
-
-    paragraphs = []
-
-    for paragraph in document.paragraphs:
-
-        text = paragraph.text.strip()
-
-        if text:
-
-            paragraphs.append(text)
-
-    return "\n".join(paragraphs)
+    return "user_id" in session
 
 
 # =========================================================
@@ -154,19 +126,53 @@ def register():
             ""
         )
 
-        # Check empty fields
+        # ---------------------------------------------
+        # VALIDATION
+        # ---------------------------------------------
 
-        if not username or not email or not password:
+        if not username:
 
             flash(
-                "Please fill in all fields."
+                "Please enter your username."
             )
 
             return redirect(
                 url_for("register")
             )
 
-        # Check existing user
+        if not email:
+
+            flash(
+                "Please enter your email."
+            )
+
+            return redirect(
+                url_for("register")
+            )
+
+        if not password:
+
+            flash(
+                "Please enter your password."
+            )
+
+            return redirect(
+                url_for("register")
+            )
+
+        if len(password) < 6:
+
+            flash(
+                "Password must contain at least 6 characters."
+            )
+
+            return redirect(
+                url_for("register")
+            )
+
+        # ---------------------------------------------
+        # CHECK EXISTING USER
+        # ---------------------------------------------
 
         existing_user = get_user_by_email(
             email
@@ -175,20 +181,40 @@ def register():
         if existing_user:
 
             flash(
-                "An account with this email already exists."
+                "An account with this email already exists. "
+                "Please login."
+            )
+
+            return redirect(
+                url_for("login")
+            )
+
+        # ---------------------------------------------
+        # CREATE USER
+        # ---------------------------------------------
+
+        try:
+
+            create_user(
+                username,
+                email,
+                password
+            )
+
+        except Exception as e:
+
+            print(
+                "REGISTRATION ERROR:",
+                e
+            )
+
+            flash(
+                "Unable to create account."
             )
 
             return redirect(
                 url_for("register")
             )
-
-        # Create user
-
-        create_user(
-            username,
-            email,
-            password
-        )
 
         flash(
             "Registration successful. Please login."
@@ -225,18 +251,61 @@ def login():
             ""
         )
 
-        # Find user
+        # ---------------------------------------------
+        # VALIDATION
+        # ---------------------------------------------
+
+        if not email or not password:
+
+            flash(
+                "Please enter both email and password."
+            )
+
+            return render_template(
+                "login.html"
+            )
+
+        # ---------------------------------------------
+        # FIND USER
+        # ---------------------------------------------
 
         user = get_user_by_email(
             email
         )
 
-        # Verify password
+        # ---------------------------------------------
+        # VERIFY PASSWORD
+        # ---------------------------------------------
 
-        if user and verify_password(
-            password,
-            user["password"]
-        ):
+        if user:
+
+            try:
+
+                password_valid = verify_password(
+                    password,
+                    user["password"]
+                )
+
+            except Exception as e:
+
+                print(
+                    "PASSWORD VERIFICATION ERROR:",
+                    e
+                )
+
+                password_valid = False
+
+        else:
+
+            password_valid = False
+
+        # ---------------------------------------------
+        # LOGIN SUCCESS
+        # ---------------------------------------------
+
+        if user and password_valid:
+
+            session.clear()
 
             session["user_id"] = user["id"]
 
@@ -244,12 +313,22 @@ def login():
 
             session["email"] = user["email"]
 
+            session.permanent = False
+
             return redirect(
                 url_for("dashboard")
             )
 
+        # ---------------------------------------------
+        # LOGIN FAILED
+        # ---------------------------------------------
+
         flash(
             "Invalid email or password."
+        )
+
+        return render_template(
+            "login.html"
         )
 
     return render_template(
@@ -264,7 +343,7 @@ def login():
 @app.route("/dashboard")
 def dashboard():
 
-    if "user_id" not in session:
+    if not login_required():
 
         return redirect(
             url_for("login")
@@ -272,12 +351,14 @@ def dashboard():
 
     return render_template(
         "dashboard.html",
-        username=session.get("username")
+        username=session.get(
+            "username"
+        )
     )
 
 
 # =========================================================
-# TEXT CONTENT TRANSFORMATION
+# TEXT TRANSFORMATION
 # =========================================================
 
 @app.route(
@@ -286,15 +367,15 @@ def dashboard():
 )
 def transform():
 
-    # User must be logged in
-
-    if "user_id" not in session:
+    if not login_required():
 
         return redirect(
             url_for("login")
         )
 
-    # GET request
+    # ---------------------------------------------
+    # GET
+    # ---------------------------------------------
 
     if request.method == "GET":
 
@@ -304,7 +385,9 @@ def transform():
             original_content=""
         )
 
-    # Get form data
+    # ---------------------------------------------
+    # FORM DATA
+    # ---------------------------------------------
 
     content = request.form.get(
         "content",
@@ -326,7 +409,9 @@ def transform():
         "English"
     )
 
-    # Validate content
+    # ---------------------------------------------
+    # VALIDATION
+    # ---------------------------------------------
 
     if not content:
 
@@ -334,11 +419,15 @@ def transform():
             "Please enter some content."
         )
 
-        return redirect(
-            url_for("transform")
+        return render_template(
+            "transform.html",
+            output=None,
+            original_content=""
         )
 
-    # Call Generative AI
+    # ---------------------------------------------
+    # AI
+    # ---------------------------------------------
 
     try:
 
@@ -352,7 +441,7 @@ def transform():
     except Exception as e:
 
         print(
-            "AI ERROR:",
+            "TEXT AI ERROR:",
             e
         )
 
@@ -367,7 +456,9 @@ def transform():
             original_content=content
         )
 
-    # Display result
+    # ---------------------------------------------
+    # RESULT
+    # ---------------------------------------------
 
     return render_template(
         "transform.html",
@@ -378,28 +469,23 @@ def transform():
 
 # =========================================================
 # DOCUMENT TRANSFORMATION
-# PDF + DOCX
 # =========================================================
 
 @app.route(
     "/document-transform",
     methods=["GET", "POST"]
 )
-@app.route(
-    "/upload",
-    methods=["GET", "POST"]
-)
 def document_transform():
 
-    # User must be logged in
-
-    if "user_id" not in session:
+    if not login_required():
 
         return redirect(
             url_for("login")
         )
 
-    # GET request
+    # ---------------------------------------------
+    # GET
+    # ---------------------------------------------
 
     if request.method == "GET":
 
@@ -409,11 +495,53 @@ def document_transform():
             filename=None
         )
 
-    # Get uploaded file
+    # ---------------------------------------------
+    # FILE
+    # ---------------------------------------------
 
     file = request.files.get(
         "document"
     )
+
+    if not file:
+
+        flash(
+            "Please select a PDF or DOCX file."
+        )
+
+        return redirect(
+            url_for("document_transform")
+        )
+
+    if not file.filename:
+
+        flash(
+            "Please select a file."
+        )
+
+        return redirect(
+            url_for("document_transform")
+        )
+
+    # ---------------------------------------------
+    # FILE TYPE
+    # ---------------------------------------------
+
+    if not allowed_file(
+        file.filename
+    ):
+
+        flash(
+            "Only PDF and DOCX files are supported."
+        )
+
+        return redirect(
+            url_for("document_transform")
+        )
+
+    # ---------------------------------------------
+    # FORM DATA
+    # ---------------------------------------------
 
     transformation = request.form.get(
         "transformation",
@@ -430,48 +558,35 @@ def document_transform():
         "English"
     )
 
-    # Check file
-
-    if not file or file.filename == "":
-
-        flash(
-            "Please select a PDF or DOCX file."
-        )
-
-        return redirect(
-            url_for("document_transform")
-        )
-
-    # Check extension
-
-    if not allowed_file(
-        file.filename
-    ):
-
-        flash(
-            "Only PDF and DOCX files are supported."
-        )
-
-        return redirect(
-            url_for("document_transform")
-        )
-
-    # Secure filename
+    # ---------------------------------------------
+    # SAVE FILE
+    # ---------------------------------------------
 
     filename = secure_filename(
         file.filename
     )
+
+    # Prevent empty filename
+    if not filename:
+
+        flash(
+            "Invalid filename."
+        )
+
+        return redirect(
+            url_for("document_transform")
+        )
 
     filepath = os.path.join(
         app.config["UPLOAD_FOLDER"],
         filename
     )
 
-    # Save file
-
     try:
 
-        file.save(filepath)
+        file.save(
+            filepath
+        )
 
     except Exception as e:
 
@@ -481,14 +596,18 @@ def document_transform():
         )
 
         flash(
-            "Unable to save the uploaded file."
+            "Unable to save uploaded file."
         )
 
         return redirect(
             url_for("document_transform")
         )
 
-    # Extract text
+    # ---------------------------------------------
+    # EXTRACT TEXT
+    # ---------------------------------------------
+
+    extracted_text = ""
 
     try:
 
@@ -497,21 +616,61 @@ def document_transform():
             1
         )[1].lower()
 
+        # =========================================
+        # PDF
+        # =========================================
+
         if extension == "pdf":
 
-            extracted_text = extract_pdf_text(
+            from PyPDF2 import PdfReader
+
+            reader = PdfReader(
                 filepath
             )
+
+            pages = []
+
+            for page in reader.pages:
+
+                text = page.extract_text()
+
+                if text:
+
+                    pages.append(
+                        text
+                    )
+
+            extracted_text = "\n".join(
+                pages
+            )
+
+        # =========================================
+        # DOCX
+        # =========================================
 
         elif extension == "docx":
 
-            extracted_text = extract_docx_text(
+            from docx import Document
+
+            document = Document(
                 filepath
             )
 
-        else:
+            paragraphs = []
 
-            extracted_text = ""
+            for paragraph in document.paragraphs:
+
+                text = paragraph.text.strip()
+
+                if text:
+
+                    paragraphs.append(
+                        text
+                    )
+
+            extracted_text = "\n".join(
+                paragraphs
+            )
 
     except Exception as e:
 
@@ -521,14 +680,20 @@ def document_transform():
         )
 
         flash(
-            "Unable to read the document."
+            "Unable to read the uploaded document."
         )
 
-        return redirect(
-            url_for("document_transform")
+        return render_template(
+            "document_transform.html",
+            output=None,
+            filename=filename
         )
 
-    # Check extracted text
+    # ---------------------------------------------
+    # CHECK TEXT
+    # ---------------------------------------------
+
+    extracted_text = extracted_text.strip()
 
     if not extracted_text:
 
@@ -536,11 +701,15 @@ def document_transform():
             "No readable text was found in the document."
         )
 
-        return redirect(
-            url_for("document_transform")
+        return render_template(
+            "document_transform.html",
+            output=None,
+            filename=filename
         )
 
-    # Send document text to Gemini
+    # ---------------------------------------------
+    # GENERATIVE AI
+    # ---------------------------------------------
 
     try:
 
@@ -559,7 +728,8 @@ def document_transform():
         )
 
         flash(
-            "Unable to transform the document using AI."
+            "Unable to generate AI content. "
+            "Please check your Gemini API configuration."
         )
 
         return render_template(
@@ -568,13 +738,34 @@ def document_transform():
             filename=filename
         )
 
-    # Display result
+    # ---------------------------------------------
+    # DISPLAY OUTPUT
+    # ---------------------------------------------
 
     return render_template(
         "document_transform.html",
         output=output,
         filename=filename
     )
+
+
+# =========================================================
+# UPLOAD ALIAS
+# =========================================================
+#
+# This fixes:
+#
+# http://127.0.0.1:5000/upload
+#
+# =========================================================
+
+@app.route(
+    "/upload",
+    methods=["GET", "POST"]
+)
+def upload():
+
+    return document_transform()
 
 
 # =========================================================
@@ -592,11 +783,50 @@ def logout():
 
 
 # =========================================================
-# RUN APPLICATION
+# FILE TOO LARGE
+# =========================================================
+
+@app.errorhandler(413)
+def file_too_large(error):
+
+    flash(
+        "File is too large. Maximum size is 10 MB."
+    )
+
+    return redirect(
+        url_for("document_transform")
+    )
+
+
+# =========================================================
+# GENERAL ERROR
+# =========================================================
+
+@app.errorhandler(500)
+def internal_error(error):
+
+    print(
+        "INTERNAL SERVER ERROR:",
+        error
+    )
+
+    flash(
+        "Something went wrong. Please try again."
+    )
+
+    return redirect(
+        url_for("dashboard")
+    )
+
+
+# =========================================================
+# RUN
 # =========================================================
 
 if __name__ == "__main__":
 
     app.run(
-        debug=True
+        debug=True,
+        host="127.0.0.1",
+        port=5000
     )
