@@ -12,6 +12,7 @@ from werkzeug.security import (
 # =========================================================
 
 DATABASE_DIR = "database"
+
 DATABASE_FILE = os.path.join(
     DATABASE_DIR,
     "users.db"
@@ -48,6 +49,10 @@ def init_database():
 
     cursor = connection.cursor()
 
+    # -----------------------------------------------------
+    # USERS TABLE
+    # -----------------------------------------------------
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,6 +61,26 @@ def init_database():
             password TEXT NOT NULL,
             created_at TIMESTAMP
                 DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # -----------------------------------------------------
+    # TRANSFORMATION HISTORY TABLE
+    # -----------------------------------------------------
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS transformation_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            transformation TEXT NOT NULL,
+            tone TEXT NOT NULL,
+            language TEXT NOT NULL,
+            output TEXT NOT NULL,
+            created_at TIMESTAMP
+                DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id)
+                REFERENCES users(id)
         )
     """)
 
@@ -186,6 +211,99 @@ def reset_password(
     connection.close()
 
     return updated_rows > 0
+
+
+# =========================================================
+# SAVE TRANSFORMATION
+# =========================================================
+
+def save_transformation(
+    user_id,
+    content,
+    transformation,
+    tone,
+    language,
+    output
+):
+
+    connection = get_connection()
+
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        INSERT INTO transformation_history (
+            user_id,
+            content,
+            transformation,
+            tone,
+            language,
+            output
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (
+        user_id,
+        content,
+        transformation,
+        tone,
+        language,
+        output
+    ))
+
+    connection.commit()
+
+    connection.close()
+
+
+# =========================================================
+# GET USER TRANSFORMATION HISTORY
+# =========================================================
+
+def get_user_history(user_id):
+
+    connection = get_connection()
+
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT *
+        FROM transformation_history
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+    """, (
+        user_id,
+    ))
+
+    history = cursor.fetchall()
+
+    connection.close()
+
+    return history
+
+
+# =========================================================
+# DELETE USER HISTORY
+# =========================================================
+
+def delete_user_history(user_id):
+
+    connection = get_connection()
+
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        DELETE FROM transformation_history
+        WHERE user_id = ?
+    """, (
+        user_id,
+    ))
+
+    connection.commit()
+
+    deleted_rows = cursor.rowcount
+
+    connection.close()
+
+    return deleted_rows
 
 
 # =========================================================
